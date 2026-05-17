@@ -176,7 +176,11 @@ class Trainer(object):
             # save the best state
             if best_state == True:
                 self.logger.info('*********************************Current best model saved!')
-                best_model = copy.deepcopy(self.model.state_dict())
+                # Handle DataParallel wrapped models
+                if hasattr(self.model, 'module'):
+                    best_model = copy.deepcopy(self.model.module.state_dict())
+                else:
+                    best_model = copy.deepcopy(self.model.state_dict())
                 best_model_test = copy.deepcopy(self.model)
 
         training_time = time.time() - start_time
@@ -198,8 +202,13 @@ class Trainer(object):
 
 
     def save_checkpoint(self):
+        # Handle DataParallel wrapped models
+        if hasattr(self.model, 'module'):
+            model_state = self.model.module.state_dict()
+        else:
+            model_state = self.model.state_dict()
         state = {
-            'state_dict': self.model.state_dict(),
+            'state_dict': model_state,
             'optimizer': self.optimizer.state_dict(),
             'config': self.args
         }
@@ -212,7 +221,11 @@ class Trainer(object):
             check_point = torch.load(path)
             state_dict = check_point['state_dict']
             args = check_point['config']
-            model.load_state_dict(state_dict)
+            # Handle DataParallel wrapped models
+            if hasattr(model, 'module'):
+                model.module.load_state_dict(state_dict)
+            else:
+                model.load_state_dict(state_dict)
             model.to(args.device)
         model.eval()
         y_pred = []

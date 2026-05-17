@@ -76,6 +76,11 @@ else:
     model = Network_Predict(args, args_predictor)
     model = model.to(args.device)
 
+# Multi-GPU support with DataParallel
+if torch.cuda.device_count() > 1:
+    print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
+    model = nn.DataParallel(model)
+
 if args.xavier:
     for p in model.parameters():
         if p.requires_grad==True:
@@ -159,7 +164,11 @@ elif args.mode == 'eval':
 elif args.mode == 'ori':
     trainer.train()
 elif args.mode == 'test':
-    model.load_state_dict(torch.load(log_dir + '/best_model.pth'))
+    # Handle DataParallel wrapped models
+    if hasattr(model, 'module'):
+        model.module.load_state_dict(torch.load(log_dir + '/best_model.pth'))
+    else:
+        model.load_state_dict(torch.load(log_dir + '/best_model.pth'))
     print("Load saved model")
     trainer.test(model, trainer.args, test_loader, scaler_data, trainer.logger)
 else:
