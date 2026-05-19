@@ -164,12 +164,17 @@ elif args.mode == 'eval':
 elif args.mode == 'ori':
     trainer.train()
 elif args.mode == 'test':
+    checkpoint = torch.load(log_dir + '/best_model.pth')
+    # Handle both old format (just state_dict) and new format (full checkpoint)
+    state_dict = checkpoint['state_dict'] if isinstance(checkpoint, dict) and 'state_dict' in checkpoint else checkpoint
     # Handle DataParallel wrapped models
     if hasattr(model, 'module'):
-        model.module.load_state_dict(torch.load(log_dir + '/best_model.pth'))
+        model.module.load_state_dict(state_dict)
     else:
-        model.load_state_dict(torch.load(log_dir + '/best_model.pth'))
+        model.load_state_dict(state_dict)
     print("Load saved model")
+    if isinstance(checkpoint, dict) and 'best_loss' in checkpoint:
+        print(f"Checkpoint from epoch {checkpoint['epoch']} with best loss: {checkpoint['best_loss']:.6f}")
     trainer.test(model, trainer.args, test_loader, scaler_data, trainer.logger)
 else:
     raise ValueError
