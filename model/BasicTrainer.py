@@ -3,6 +3,7 @@ import os
 import time
 import copy
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 from lib.logger import get_logger
 from lib.metrics import All_Metrics
 
@@ -32,10 +33,8 @@ class Trainer(object):
             os.makedirs(args.log_dir, exist_ok=True)
         self.logger = get_logger(args.log_dir, name=args.model, debug=args.debug)
         self.logger.info('Experiment log path in: {}'.format(args.log_dir))
-        #if not args.debug:
-        #self.logger.info("Argument: %r", args)
-        # for arg, value in sorted(vars(args).items()):
-        #     self.logger.info("Argument %s: %r", arg, value)
+        # TensorBoard writer
+        self.writer = SummaryWriter(log_dir=os.path.join(args.log_dir, 'tensorboard'))
 
     def val_epoch(self, epoch, val_dataloader):
         self.model.eval()
@@ -110,6 +109,10 @@ class Trainer(object):
             train_epoch_flow_loss = total_flow_loss/self.train_per_epoch
             train_epoch_s_loss = total_s_loss / self.train_per_epoch
             self.logger.info('**********Train Epoch {}: averaged Loss: {:.6f} averaged Loss_s: {:.6f}'.format(epoch, train_epoch_flow_loss, train_epoch_s_loss))
+            # TensorBoard logging for pretrain
+            self.writer.add_scalar('Loss/flow', train_epoch_flow_loss, epoch)
+            if epoch > self.args.change_epoch:
+                self.writer.add_scalar('Loss/kl', train_epoch_s_loss, epoch)
         else:
             self.logger.info('**********Train Epoch {}: averaged Loss: {:.6f}'.format(epoch, train_epoch_loss))
 
@@ -126,6 +129,7 @@ class Trainer(object):
         best_model = None
         best_model_test = None
         best_loss = float('inf')
+        best_epoch = 0
         not_improved_count = 0
         train_loss_list = []
         val_loss_list = []
@@ -160,7 +164,11 @@ class Trainer(object):
                     not_improved_count += 1
                     best_state = False
 
-            #print('LR:', self.optimizer.param_groups[0]['lr'])
+            # TensorBoard logging
+            self.writer.add_scalar('Loss/train', train_epoch_loss, epoch)
+            self.writer.add_scalar('LearningRate', self.optimizer.param_groups[0]['lr'], epoch)
+            if self.args.mode != 'pretrain' and 'val_epoch_loss' in locals():
+                self.writer.add_scalar('Loss/val', val_epoch_loss, epoch)
             train_loss_list.append(train_epoch_loss)
 
             if train_epoch_loss > 1e6:
@@ -182,6 +190,7 @@ class Trainer(object):
                 else:
                     best_model = copy.deepcopy(self.model.state_dict())
                 best_model_test = copy.deepcopy(self.model)
+                best_epoch = epoch
 
         training_time = time.time() - start_time
         self.logger.info("Total training time: {:.4f}min, best loss: {:.6f}".format((training_time / 60), best_loss))
@@ -189,34 +198,51 @@ class Trainer(object):
         #save the best model to file
         # if not self.args.debug:
         if self.args.debug:
-            torch.save(best_model, self.best_path)
+            checkpoint = {
+                'state_dict': best_model,
+                'optimizer': self.optimizer.state_dict(),
+                'lr_scheduler': self.lr_scheduler.state_dict() if self.lr_scheduler else None,
+                'epoch': best_epoch,
+                'best_loss': best_loss,
+                'train_loss_history': train_loss_list,
+                'val_loss_history': val_loss_list,
+                'config': self.args
+            }
+            torch.save(checkpoint, self.best_path)
             self.logger.info("Saving current best model to " + self.best_path)
 
         #test
         # self.model.load_state_dict(best_model)
         #self.val_epoch(self.args.epochs, self.test_loader)
         if self.args.mode == 'pretrain':
-            self.test(best_model_test, self.args, self.train_loader, self.scaler, self.logger)
+            self.test(best_model_test, self.args, self.train_loader, self.scaler, self.logger, writer=self.writer)
         else:
-            self.test(best_model_test, self.args, self.test_loader, self.scaler, self.logger)
+            self.test(best_model_test, self.args, self.test_loader, self.scaler, self.logger, writer=self.writer)
+
+        self.writer.close()
 
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, epoch=None, best_loss=None, train_loss_history=None, val_loss_history=None):
         # Handle DataParallel wrapped models
         if hasattr(self.model, 'module'):
             model_state = self.model.module.state_dict()
         else:
             model_state = self.model.state_dict()
-        state = {
+        checkpoint = {
             'state_dict': model_state,
             'optimizer': self.optimizer.state_dict(),
+            'lr_scheduler': self.lr_scheduler.state_dict() if self.lr_scheduler else None,
+            'epoch': epoch,
+            'best_loss': best_loss,
+            'train_loss_history': train_loss_history if train_loss_history else [],
+            'val_loss_history': val_loss_history if val_loss_history else [],
             'config': self.args
         }
-        torch.save(state, self.best_path)
+        torch.save(checkpoint, self.best_path)
         self.logger.info("Saving current best model to " + self.best_path)
 
     @staticmethod
-    def test(model, args, data_loader, scaler, logger, path=None):
+    def test(model, args, data_loader, scaler, logger, path=None, writer=None):
         if path != None:
             check_point = torch.load(path)
             state_dict = check_point['state_dict']
@@ -259,4 +285,10 @@ class Trainer(object):
         mae, rmse, mape, _, corr = All_Metrics(y_pred, y_true, args.mae_thresh, args.mape_thresh)
         logger.info("Average Horizon, MAE: {:.2f}, RMSE: {:.2f}, MAPE: {:.4f}%, CORR:{:.4f}".format(
                     mae, rmse, mape*100, corr))
+        # TensorBoard logging for test metrics
+        if writer is not None:
+            writer.add_scalar('Test/MAE', mae, 0)
+            writer.add_scalar('Test/RMSE', rmse, 0)
+            writer.add_scalar('Test/MAPE', mape * 100, 0)
+            writer.add_scalar('Test/CORR', corr, 0)
 
