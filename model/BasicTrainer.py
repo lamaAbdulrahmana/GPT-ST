@@ -113,6 +113,7 @@ class Trainer(object):
             self.writer.add_scalar('Loss/flow', train_epoch_flow_loss, epoch)
             if epoch > self.args.change_epoch:
                 self.writer.add_scalar('Loss/kl', train_epoch_s_loss, epoch)
+            self.writer.flush()
         else:
             self.logger.info('**********Train Epoch {}: averaged Loss: {:.6f}'.format(epoch, train_epoch_loss))
 
@@ -169,6 +170,7 @@ class Trainer(object):
             self.writer.add_scalar('LearningRate', self.optimizer.param_groups[0]['lr'], epoch)
             if self.args.mode != 'pretrain' and 'val_epoch_loss' in locals():
                 self.writer.add_scalar('Loss/val', val_epoch_loss, epoch)
+            self.writer.flush()
             train_loss_list.append(train_epoch_loss)
 
             if train_epoch_loss > 1e6:
@@ -291,4 +293,5 @@ class Trainer(object):
             writer.add_scalar('Test/RMSE', rmse, 0)
             writer.add_scalar('Test/MAPE', mape * 100, 0)
             writer.add_scalar('Test/CORR', corr, 0)
+            writer.flush()
 
