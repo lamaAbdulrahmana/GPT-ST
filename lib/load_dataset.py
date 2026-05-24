@@ -87,6 +87,17 @@ def load_st_dataset(dataset, args):
         args.week_day = week_day
         holiday_list = []
         day_data, week_data, holiday_data = time_add(data[..., 0], week_start, interval, weekday_only, holiday_list=holiday_list)
+    elif dataset == 'RIYADH':
+        data_path = os.path.join('../data/RIYADH/RIYADH.npz')
+        data = np.load(data_path)['data']
+        print(data.shape, data[data==0].shape)
+        week_start = 2
+        holiday_list = []
+        interval = 10
+        week_day = 7
+        args.interval = interval
+        args.week_day = week_day
+        day_data, week_data, holiday_data = time_add(data[..., 0] if data.ndim > 2 else data, week_start, interval=interval, weekday_only=False, holiday_list=holiday_list)
     else:
         raise ValueError
     if len(data.shape) == 2:
