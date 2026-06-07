@@ -190,6 +190,7 @@ class time_feature(nn.Module):
 
         self.ln_day = nn.Linear(1, embed_dim)
         self.ln_week = nn.Linear(1, embed_dim)
+        self.ln_holiday = nn.Linear(1, embed_dim)
         self.ln1 = nn.Linear(embed_dim, embed_dim)
         self.ln2 = nn.Linear(embed_dim, embed_dim)
         self.ln = nn.Linear(embed_dim, embed_dim)
@@ -198,7 +199,10 @@ class time_feature(nn.Module):
     def forward(self, eb):
         day = self.ln_day(eb[:, :, 0:1])
         week = self.ln_week(eb[:, :, 1:2])
-        eb = self.ln(self.act(self.ln2(self.act(self.ln1(day + week)))))
+        combined = day + week
+        if eb.shape[-1] > 2:
+            combined = combined + self.ln_holiday(eb[:, :, 2:3])
+        eb = self.ln(self.act(self.ln2(self.act(self.ln1(combined)))))
         return eb
 
 class time_feature_spg(nn.Module):
@@ -207,6 +211,7 @@ class time_feature_spg(nn.Module):
 
         self.ln_day = nn.Linear(12, embed_dim)
         self.ln_week = nn.Linear(12, embed_dim)
+        self.ln_holiday = nn.Linear(12, embed_dim)
         self.ln1 = nn.Linear(embed_dim, embed_dim)
         self.ln2 = nn.Linear(embed_dim, embed_dim)
         self.ln = nn.Linear(embed_dim, embed_dim)
@@ -215,7 +220,10 @@ class time_feature_spg(nn.Module):
     def forward(self, eb):
         day = self.ln_day(eb[:, :, 0])
         week = self.ln_week(eb[:, :, 1])
-        eb = self.ln(self.act(self.ln2(self.act(self.ln1(day + week)))))
+        combined = day + week
+        if eb.shape[-2] > 2:
+            combined = combined + self.ln_holiday(eb[:, :, 2])
+        eb = self.ln(self.act(self.ln2(self.act(self.ln1(combined)))))
         return eb
 
 class STHCN(nn.Module):
@@ -255,10 +263,14 @@ class STHCN(nn.Module):
 
         day_index = source[:, :, 0, self.input_base_dim:self.input_base_dim+1]
         week_index = source[:, :, 0, self.input_base_dim+1:self.input_base_dim+2]
+        time_parts = [day_index, week_index]
+        if self.input_extra_dim > 2:
+            time_parts.append(source[:, :, 0, self.input_base_dim+2:self.input_base_dim+3])
+        time_cat = torch.cat(time_parts, dim=-1)
 
-        time_eb = self.time_feature1(torch.cat([day_index, week_index], dim=-1)).squeeze(-1)
-        teb = self.time_feature1_(torch.cat([day_index, week_index], dim=-1)).squeeze(-1)
-        time_eb_spg = self.time_feature2(torch.cat([day_index, week_index], dim=-1)).squeeze(-1)
+        time_eb = self.time_feature1(time_cat).squeeze(-1)
+        teb = self.time_feature1_(time_cat).squeeze(-1)
+        time_eb_spg = self.time_feature2(time_cat).squeeze(-1)
 
         # print(time_eb.shape, teb.shape, time_eb_spg.shape)
 
@@ -325,7 +337,10 @@ class Hypergraph_encoder(nn.Module):
                 # get the HS first
                 day_index_ori = source[:, :, 0, self.input_base_dim:self.input_base_dim + 1]
                 week_index_ori = source[:, :, 0, self.input_base_dim + 1:self.input_base_dim + 2]
-                time_eb_logits = self.teb4mask(torch.cat([day_index_ori, week_index_ori], dim=-1))
+                time_parts = [day_index_ori, week_index_ori]
+                if self.input_extra_dim > 2:
+                    time_parts.append(source[:, :, 0, self.input_base_dim + 2:self.input_base_dim + 3])
+                time_eb_logits = self.teb4mask(torch.cat(time_parts, dim=-1))
                 guide_weight = self.MLP_RL(source[..., 0:self.input_base_dim], time_eb_logits, self.neb4mask)
 
                 # get the classification label
@@ -336,7 +351,10 @@ class Hypergraph_encoder(nn.Module):
                 # get the HS first
                 day_index_ori = source[:, :, 0, self.input_base_dim:self.input_base_dim + 1]
                 week_index_ori = source[:, :, 0, self.input_base_dim + 1:self.input_base_dim + 2]
-                time_eb_logits = self.teb4mask(torch.cat([day_index_ori, week_index_ori], dim=-1))
+                time_parts = [day_index_ori, week_index_ori]
+                if self.input_extra_dim > 2:
+                    time_parts.append(source[:, :, 0, self.input_base_dim + 2:self.input_base_dim + 3])
+                time_eb_logits = self.teb4mask(torch.cat(time_parts, dim=-1))
                 guide_weight = self.MLP_RL(source[..., 0:self.input_base_dim], time_eb_logits, self.neb4mask)
 
                 # get the classification label

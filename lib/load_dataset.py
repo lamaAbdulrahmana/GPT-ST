@@ -1,8 +1,9 @@
 import os
 import numpy as np
+from datetime import datetime, timedelta
 
-def time_add(data, week_start, interval=5, weekday_only=False, holiday_list=None, day_start=0, hour_of_day=24):
-    # day and week
+def time_add(data, week_start, interval=5, weekday_only=False, holiday_list=None,
+             day_start=0, hour_of_day=24, start_date=None, holiday_dates=None):
     if weekday_only:
         week_max = 5
     else:
@@ -11,7 +12,6 @@ def time_add(data, week_start, interval=5, weekday_only=False, holiday_list=None
     day_data = np.zeros_like(data)
     week_data = np.zeros_like(data)
     holiday_data = np.zeros_like(data)
-    # index_data = np.zeros_like(data)
     day_init = day_start
     week_init = week_start
     holiday_init = 1
@@ -19,7 +19,7 @@ def time_add(data, week_start, interval=5, weekday_only=False, holiday_list=None
         if (index) % time_slot == 0:
             day_init = day_start
         day_init = day_init + 1
-        if (index) % time_slot == 0 and index !=0:
+        if (index) % time_slot == 0 and index != 0:
             week_init = week_init + 1
         if week_init > week_max:
             week_init = 1
@@ -32,11 +32,19 @@ def time_add(data, week_start, interval=5, weekday_only=False, holiday_list=None
         week_data[index:index + 1, :] = week_init
         holiday_data[index:index + 1, :] = holiday_init
 
-    if holiday_list is None:
-        k = 1
-    else:
-        for j in holiday_list :
-            holiday_data[j-1 * time_slot:j * time_slot, :] = 2
+    if holiday_list is not None:
+        for j in holiday_list:
+            holiday_data[(j - 1) * time_slot:j * time_slot, :] = 2
+
+    if start_date is not None and holiday_dates is not None:
+        total_days = data.shape[0] // time_slot + 1
+        for day_offset in range(total_days):
+            current_date = start_date + timedelta(days=day_offset)
+            if (current_date.month, current_date.day) in holiday_dates:
+                ts_start = day_offset * time_slot
+                ts_end = (day_offset + 1) * time_slot
+                holiday_data[ts_start:ts_end, :] = 2
+
     return day_data, week_data, holiday_data
 
 
@@ -95,20 +103,29 @@ def load_st_dataset(dataset, args):
         holiday_list = []
         interval = 10
         week_day = 7
+        hour_of_day = 19
         args.interval = interval
         args.week_day = week_day
-        day_data, week_data, holiday_data = time_add(data[..., 0] if data.ndim > 2 else data, week_start, interval=interval, weekday_only=False, holiday_list=holiday_list)
+        args.hour_of_day = hour_of_day
+        start_date = datetime(2025, 11, 4)
+        holiday_dates = {(2, 22), (9, 23)}  # Founding Day, National Day
+        day_data, week_data, holiday_data = time_add(
+            data[..., 0] if data.ndim > 2 else data, week_start,
+            interval=interval, weekday_only=False, holiday_list=holiday_list,
+            start_date=start_date, holiday_dates=holiday_dates)
     else:
         raise ValueError
     if len(data.shape) == 2:
         data = np.expand_dims(data, axis=-1)
         day_data = np.expand_dims(day_data, axis=-1).astype(int)
         week_data = np.expand_dims(week_data, axis=-1).astype(int)
-        data = np.concatenate([data, day_data, week_data], axis=-1)
+        holiday_data = np.expand_dims(holiday_data, axis=-1).astype(int)
+        data = np.concatenate([data, day_data, week_data, holiday_data], axis=-1)
     elif len(data.shape) > 2:
         day_data = np.expand_dims(day_data, axis=-1).astype(int)
         week_data = np.expand_dims(week_data, axis=-1).astype(int)
-        data = np.concatenate([data, day_data, week_data], axis=-1)
+        holiday_data = np.expand_dims(holiday_data, axis=-1).astype(int)
+        data = np.concatenate([data, day_data, week_data, holiday_data], axis=-1)
     else:
         raise ValueError
     print('Load %s Dataset shaped: ' % dataset, data.shape, data[..., 0:1].max(), data[..., 0:1].min(),

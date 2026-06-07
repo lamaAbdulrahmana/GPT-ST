@@ -36,6 +36,7 @@ def normalize_dataset(data, normalizer, input_base_dim, column_wise=False):
             data_ori = data[:, :, 0:input_base_dim]
             data_day = data[:, :, input_base_dim:input_base_dim+1]
             data_week = data[:, :, input_base_dim+1:input_base_dim+2]
+            data_holiday = data[:, :, input_base_dim+2:input_base_dim+3]
 
             mean_data = data_ori.mean()
             std_data = data_ori.std()
@@ -43,6 +44,8 @@ def normalize_dataset(data, normalizer, input_base_dim, column_wise=False):
             std_day = data_day.std()
             mean_week = data_week.mean()
             std_week = data_week.std()
+            mean_holiday = data_holiday.mean()
+            std_holiday = data_holiday.std()
 
             scaler_data = StandardScaler(mean_data, std_data)
             data_ori = scaler_data.transform(data_ori)
@@ -50,8 +53,10 @@ def normalize_dataset(data, normalizer, input_base_dim, column_wise=False):
             data_day = scaler_day.transform(data_day)
             scaler_week = StandardScaler(mean_week, std_week)
             data_week = scaler_week.transform(data_week)
-            data = np.concatenate([data_ori, data_day, data_week], axis=-1)
-            print(mean_data, std_data, mean_day, std_day, mean_week, std_week)
+            scaler_holiday = StandardScaler(mean_holiday, std_holiday)
+            data_holiday = scaler_holiday.transform(data_holiday)
+            data = np.concatenate([data_ori, data_day, data_week, data_holiday], axis=-1)
+            print(mean_data, std_data, mean_day, std_day, mean_week, std_week, mean_holiday, std_holiday)
         print('Normalize the dataset by Standard Normalization')
     elif normalizer == 'None':
         scaler = NScaler()
@@ -65,18 +70,18 @@ def normalize_dataset(data, normalizer, input_base_dim, column_wise=False):
         print('Normalize the dataset by Column Min-Max Normalization')
     else:
         raise ValueError
-    return data, scaler_data, scaler_day, scaler_week, None
-    # return data, scaler
+    return data, scaler_data, scaler_day, scaler_week, scaler_holiday
 
-def split_data_by_days(data, val_days, test_days, interval=60):
+def split_data_by_days(data, val_days, test_days, interval=60, hour_of_day=24):
     '''
     :param data: [B, *]
     :param val_days:
     :param test_days:
     :param interval: interval (15, 30, 60) minutes
+    :param hour_of_day: hours of data per day
     :return:
     '''
-    T = int((24*60)/interval)
+    T = int((hour_of_day * 60) / interval)
     test_data = data[-T*test_days:]
     val_data = data[-T*(test_days + val_days): -T*test_days]
     train_data = data[:-T*(test_days + val_days)]
@@ -106,7 +111,7 @@ def get_dataloader(args, normalizer = 'std', tod=False, dow=False, weather=False
 
     #spilit dataset by days or by ratio
     if args.test_ratio > 1:
-        data_train, data_val, data_test = split_data_by_days(data, args.val_ratio, args.test_ratio)
+        data_train, data_val, data_test = split_data_by_days(data, args.val_ratio, args.test_ratio, args.interval, args.hour_of_day)
     else:
         data_train, data_val, data_test = split_data_by_ratio(data, args.val_ratio, args.test_ratio)
 
@@ -128,8 +133,10 @@ def get_dataloader(args, normalizer = 'std', tod=False, dow=False, weather=False
     y_tra_day = scaler_day.transform(y_tra[:, :, :, args.input_base_dim:args.input_base_dim+1])
     x_tra_week = scaler_week.transform(x_tra[:, :, :, args.input_base_dim+1:args.input_base_dim+2])
     y_tra_week = scaler_week.transform(y_tra[:, :, :, args.input_base_dim+1:args.input_base_dim+2])
-    x_tra = np.concatenate([x_tra_data, x_tra_day, x_tra_week], axis=-1)
-    y_tra = np.concatenate([y_tra_data, y_tra_day, y_tra_week], axis=-1)
+    x_tra_holiday = scaler_holiday.transform(x_tra[:, :, :, args.input_base_dim+2:args.input_base_dim+3])
+    y_tra_holiday = scaler_holiday.transform(y_tra[:, :, :, args.input_base_dim+2:args.input_base_dim+3])
+    x_tra = np.concatenate([x_tra_data, x_tra_day, x_tra_week, x_tra_holiday], axis=-1)
+    y_tra = np.concatenate([y_tra_data, y_tra_day, y_tra_week, y_tra_holiday], axis=-1)
 
     x_val_data = scaler_data.transform(x_val[:, :, :, :args.input_base_dim])
     y_val_data = scaler_data.transform(y_val[:, :, :, :args.input_base_dim])
@@ -137,8 +144,10 @@ def get_dataloader(args, normalizer = 'std', tod=False, dow=False, weather=False
     y_val_day = scaler_day.transform(y_val[:, :, :, args.input_base_dim:args.input_base_dim+1])
     x_val_week = scaler_week.transform(x_val[:, :, :, args.input_base_dim+1:args.input_base_dim+2])
     y_val_week = scaler_week.transform(y_val[:, :, :, args.input_base_dim+1:args.input_base_dim+2])
-    x_val = np.concatenate([x_val_data, x_val_day, x_val_week], axis=-1)
-    y_val = np.concatenate([y_val_data, y_val_day, y_val_week], axis=-1)
+    x_val_holiday = scaler_holiday.transform(x_val[:, :, :, args.input_base_dim+2:args.input_base_dim+3])
+    y_val_holiday = scaler_holiday.transform(y_val[:, :, :, args.input_base_dim+2:args.input_base_dim+3])
+    x_val = np.concatenate([x_val_data, x_val_day, x_val_week, x_val_holiday], axis=-1)
+    y_val = np.concatenate([y_val_data, y_val_day, y_val_week, y_val_holiday], axis=-1)
 
     x_test_data = scaler_data.transform(x_test[:, :, :, :args.input_base_dim])
     y_test_data = scaler_data.transform(y_test[:, :, :, :args.input_base_dim])
@@ -146,8 +155,10 @@ def get_dataloader(args, normalizer = 'std', tod=False, dow=False, weather=False
     y_test_day = scaler_day.transform(y_test[:, :, :, args.input_base_dim:args.input_base_dim+1])
     x_test_week = scaler_week.transform(x_test[:, :, :, args.input_base_dim+1:args.input_base_dim+2])
     y_test_week = scaler_week.transform(y_test[:, :, :, args.input_base_dim+1:args.input_base_dim+2])
-    x_test = np.concatenate([x_test_data, x_test_day, x_test_week], axis=-1)
-    y_test = np.concatenate([y_test_data, y_test_day, y_test_week], axis=-1)
+    x_test_holiday = scaler_holiday.transform(x_test[:, :, :, args.input_base_dim+2:args.input_base_dim+3])
+    y_test_holiday = scaler_holiday.transform(y_test[:, :, :, args.input_base_dim+2:args.input_base_dim+3])
+    x_test = np.concatenate([x_test_data, x_test_day, x_test_week, x_test_holiday], axis=-1)
+    y_test = np.concatenate([y_test_data, y_test_day, y_test_week, y_test_holiday], axis=-1)
 
     ##############get dataloader######################
     train_dataloader = data_loader(args, x_tra, y_tra, args.batch_size, shuffle=True, drop_last=False)
