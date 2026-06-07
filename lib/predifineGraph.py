@@ -140,9 +140,9 @@ def first_approx(W, n):
     '''
     A = W + np.identity(n)
     d = np.sum(A, axis=1)
-    sinvD = np.sqrt(np.mat(np.diag(d)).I)
+    sinvD = np.sqrt(np.asmatrix(np.diag(d)).I)
     # refer to Eq.5
-    return np.mat(np.identity(n) + sinvD * A * sinvD)
+    return np.asmatrix(np.identity(n) + sinvD * A * sinvD)
 
 def get_normalized_adj(A):
     """

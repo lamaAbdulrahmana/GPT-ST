@@ -22,7 +22,7 @@ def scaled_laplacian(W):
     # lambda_max \approx 2.0, the largest eigenvalues of L.L的最大特征值
     # lambda_max = eigs(L, k=1, which='LR')[0][0].real
     lambda_max = np.linalg.eigvals(L).max().real
-    return np.mat(2 * L / lambda_max - np.identity(n))
+    return np.asmatrix(2 * L / lambda_max - np.identity(n))
 
 
 def cheb_poly_approx(L, Ks, n):
@@ -33,12 +33,12 @@ def cheb_poly_approx(L, Ks, n):
     :param n: int, number of routes / size of graph.
     :return: np.ndarray, [n_route, Ks*n_route].
     '''
-    L0, L1 = np.mat(np.identity(n)), np.mat(np.copy(L))
+    L0, L1 = np.asmatrix(np.identity(n)), np.asmatrix(np.copy(L))
 
     if Ks > 1:
         L_list = [np.copy(L0), np.copy(L1)]
         for i in range(Ks - 2):
-            Ln = np.mat(2 * L * L1 - L0)
+            Ln = np.asmatrix(2 * L * L1 - L0)
             L_list.append(np.copy(Ln))
             L0, L1 = np.matrix(np.copy(L1)), np.matrix(np.copy(Ln))
         # L_lsit [Ks, n*n], Lk [n, Ks*n]
