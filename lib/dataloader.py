@@ -82,9 +82,9 @@ def split_data_by_days(data, val_days, test_days, interval=60, hour_of_day=24):
     :return:
     '''
     T = int((hour_of_day * 60) / interval)
-    test_data = data[-T*test_days:]
-    val_data = data[-T*(test_days + val_days): -T*test_days]
-    train_data = data[:-T*(test_days + val_days)]
+    test_data = data[-int(T*test_days):]
+    val_data = data[-int(T*(test_days + val_days)): -int(T*test_days)]
+    train_data = data[:-int(T*(test_days + val_days))]
     return train_data, val_data, test_data
 
 def split_data_by_ratio(data, val_ratio, test_ratio):
