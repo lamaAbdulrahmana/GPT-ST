@@ -211,8 +211,7 @@ class Trainer(object):
         self.logger.info("Total training time: {:.4f}min, best loss: {:.6f}".format((training_time / 60), best_loss))
 
         #save the best model to file
-        # if not self.args.debug:
-        if self.args.debug:
+        if True:
             checkpoint = {
                 'state_dict': best_model,
                 'optimizer': self.optimizer.state_dict(),
