@@ -221,7 +221,7 @@ class time_feature_spg(nn.Module):
         day = self.ln_day(eb[:, :, 0])
         week = self.ln_week(eb[:, :, 1])
         combined = day + week
-        if eb.shape[-2] > 2:
+        if eb.shape[-1] > 2:
             combined = combined + self.ln_holiday(eb[:, :, 2])
         eb = self.ln(self.act(self.ln2(self.act(self.ln1(combined)))))
         return eb
