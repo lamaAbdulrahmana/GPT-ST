@@ -13,6 +13,7 @@ def parse_args(device):
     args.add_argument('-device', default=device, type=str, help='indices of GPUs')
     args.add_argument('-model', default='TGCN', type=str)
     args.add_argument('-cuda', default=True, type=bool)
+    args.add_argument('-event_finetune', default=False, type=eval)
 
     args_get, _ = args.parse_known_args()
 
@@ -66,6 +67,7 @@ def parse_args(device):
     args.add_argument('-xavier', default=config['train']['xavier'], type=eval)
     args.add_argument('-load_pretrain_path', default=config['train']['load_pretrain_path'], type=str)
     args.add_argument('-save_pretrain_path', default=config['train']['save_pretrain_path'], type=str)
+    args.add_argument('-unfreeze_epoch', default=config['train'].get('unfreeze_epoch', '20'), type=int)
     # test
     args.add_argument('-mae_thresh', default=config['test']['mae_thresh'], type=eval)
     args.add_argument('-mape_thresh', default=config['test']['mape_thresh'], type=float)

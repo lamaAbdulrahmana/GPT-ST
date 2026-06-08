@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from datetime import datetime, timedelta
+from lib.event_utils import build_event_dataset, split_events_chronological
 
 def time_add(data, week_start, interval=5, weekday_only=False, holiday_list=None,
              day_start=0, hour_of_day=24, start_date=None, holiday_dates=None):
@@ -131,3 +132,48 @@ def load_st_dataset(dataset, args):
     print('Load %s Dataset shaped: ' % dataset, data.shape, data[..., 0:1].max(), data[..., 0:1].min(),
           data[..., 0:1].mean(), np.median(data[..., 0:1]), data.dtype)
     return data
+
+
+def load_event_dataset(args):
+    """
+    Load RIYADH event segments for fine-tuning.
+    Extracts windows from the FULL data (with time features already computed)
+    so that day/week encodings are correct for each event's actual position.
+    """
+    full_data = load_st_dataset('RIYADH', args)
+    print('Full RIYADH data with time features:', full_data.shape)
+
+    events_path = os.path.join('../data/RIYADH/RIYADH_events.npz')
+    start_date = datetime(2025, 11, 4)
+    interval = 10
+    hour_of_day = 19
+    day_start_hour = 7
+
+    from lib.event_utils import extract_event_windows, split_events_chronological
+    segments, event_meta = extract_event_windows(
+        full_data, events_path, start_date,
+        interval=interval, hour_of_day=hour_of_day,
+        day_start_hour=day_start_hour,
+        pre_buffer=12, post_buffer=12
+    )
+
+    print(f'Extracted {len(event_meta)} event segments')
+    for i, meta in enumerate(event_meta):
+        print(f'  Event {i}: {meta["event_name"]} ({meta["event_type"]}) '
+              f'steps [{meta["win_start"]}:{meta["win_end"]}] '
+              f'len={meta["win_end"]-meta["win_start"]}')
+
+    train_idx, val_idx, test_idx = split_events_chronological(event_meta)
+    print(f'Split: {len(train_idx)} train, {len(val_idx)} val, {len(test_idx)} test events')
+
+    train_segments = [segments[i] for i in train_idx]
+    val_segments = [segments[i] for i in val_idx]
+    test_segments = [segments[i] for i in test_idx]
+
+    train_data = np.concatenate(train_segments, axis=0) if train_segments else np.array([])
+    val_data = np.concatenate(val_segments, axis=0) if val_segments else np.array([])
+    test_data = np.concatenate(test_segments, axis=0) if test_segments else np.array([])
+
+    print(f'Event data shapes — train: {train_data.shape}, val: {val_data.shape}, test: {test_data.shape}')
+
+    return train_data, val_data, test_data, event_meta, train_idx

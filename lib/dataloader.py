@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import torch.utils.data
 from lib.add_window import Add_Window_Horizon
-from lib.load_dataset import load_st_dataset
+from lib.load_dataset import load_st_dataset, load_event_dataset
 from lib.normalization import NScaler, MinMax01Scaler, MinMax11Scaler, StandardScaler, ColumnMinMaxScaler
 
 def normalize_dataset(data, normalizer, input_base_dim, column_wise=False):
@@ -167,4 +167,49 @@ def get_dataloader(args, normalizer = 'std', tod=False, dow=False, weather=False
     else:
         val_dataloader = data_loader(args, x_val, y_val, args.batch_size, shuffle=False, drop_last=False)
     test_dataloader = data_loader(args, x_test, y_test, args.batch_size, shuffle=False, drop_last=False)
+    return train_dataloader, val_dataloader, test_dataloader, scaler_data, scaler_day, scaler_week, scaler_holiday
+
+
+def get_event_dataloader(args, normalizer='std', single=False):
+    """
+    Event-aware dataloader for fine-tuning on event segments.
+    Splits by events (chronological), not by ratio on the full stream.
+    """
+    data_train, data_val, data_test, event_meta, train_idx = load_event_dataset(args)
+
+    x_tra, y_tra = Add_Window_Horizon(data_train, args.lag, args.horizon, single)
+    x_val, y_val = Add_Window_Horizon(data_val, args.lag, args.horizon, single)
+    x_test, y_test = Add_Window_Horizon(data_test, args.lag, args.horizon, single)
+
+    print('Event Train: ', x_tra.shape, y_tra.shape)
+    print('Event Val: ', x_val.shape, y_val.shape)
+    print('Event Test: ', x_test.shape, y_test.shape)
+
+    _, scaler_data, scaler_day, scaler_week, scaler_holiday = normalize_dataset(
+        data_train, normalizer, args.input_base_dim, args.column_wise)
+
+    def apply_scalers(x, y):
+        x_data = scaler_data.transform(x[..., :args.input_base_dim])
+        y_data = scaler_data.transform(y[..., :args.input_base_dim])
+        x_day = scaler_day.transform(x[..., args.input_base_dim:args.input_base_dim+1])
+        y_day = scaler_day.transform(y[..., args.input_base_dim:args.input_base_dim+1])
+        x_week = scaler_week.transform(x[..., args.input_base_dim+1:args.input_base_dim+2])
+        y_week = scaler_week.transform(y[..., args.input_base_dim+1:args.input_base_dim+2])
+        x_holiday = scaler_holiday.transform(x[..., args.input_base_dim+2:args.input_base_dim+3])
+        y_holiday = scaler_holiday.transform(y[..., args.input_base_dim+2:args.input_base_dim+3])
+        x_out = np.concatenate([x_data, x_day, x_week, x_holiday], axis=-1)
+        y_out = np.concatenate([y_data, y_day, y_week, y_holiday], axis=-1)
+        return x_out, y_out
+
+    x_tra, y_tra = apply_scalers(x_tra, y_tra)
+    x_val, y_val = apply_scalers(x_val, y_val)
+    x_test, y_test = apply_scalers(x_test, y_test)
+
+    train_dataloader = data_loader(args, x_tra, y_tra, args.batch_size, shuffle=True, drop_last=False)
+    if len(x_val) == 0:
+        val_dataloader = None
+    else:
+        val_dataloader = data_loader(args, x_val, y_val, args.batch_size, shuffle=False, drop_last=False)
+    test_dataloader = data_loader(args, x_test, y_test, args.batch_size, shuffle=False, drop_last=False)
+
     return train_dataloader, val_dataloader, test_dataloader, scaler_data, scaler_day, scaler_week, scaler_holiday

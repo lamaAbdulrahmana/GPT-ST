@@ -135,9 +135,22 @@ class Trainer(object):
         train_loss_list = []
         val_loss_list = []
         up_epoch = [int(i) for i in list(self.args.up_epoch.split(','))]
+        unfreeze_epoch = getattr(self.args, 'unfreeze_epoch', 0)
         start_time = time.time()
         for epoch in range(1, self.args.epochs + 1):
-            # epoch_time = time.time()
+            if unfreeze_epoch > 0 and epoch == unfreeze_epoch and self.args.mode == 'eval':
+                if hasattr(self.model, 'module'):
+                    param_groups = self.model.module.unfreeze_pretrained(lr_scale=0.1)
+                else:
+                    param_groups = self.model.unfreeze_pretrained(lr_scale=0.1)
+                base_lr = self.optimizer.param_groups[0]['lr']
+                for pg in param_groups:
+                    self.optimizer.add_param_group({
+                        'params': pg['params'],
+                        'lr': base_lr * pg['lr_scale']
+                    })
+                self.logger.info(f'Epoch {epoch}: Unfroze pretrained encoder '
+                                 f'(lr={base_lr * 0.1:.6f})')
             train_epoch_loss = self.train_epoch(epoch)
             # print(time.time()-epoch_time)
             if epoch in up_epoch:

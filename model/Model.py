@@ -93,9 +93,18 @@ class Enhance_model(nn.Module):
             raise ValueError
 
     def load_pretrained_model(self):
-        self.pretrain_model.load_state_dict(torch.load(self.log_dir + self.load_pretrain_path))
+        self.pretrain_model.load_state_dict(
+            torch.load(self.log_dir + self.load_pretrain_path, weights_only=False))
         for param in self.pretrain_model.parameters():
             param.requires_grad = False
+
+    def unfreeze_pretrained(self, lr_scale=0.1):
+        """Unfreeze the pretrained encoder for gradual fine-tuning."""
+        for param in self.pretrain_model.parameters():
+            param.requires_grad = True
+        return [
+            {'params': self.pretrain_model.parameters(), 'lr_scale': lr_scale},
+        ]
 
     def forward(self, source, label, batch_seen=None):
         if self.mode == 'ori':

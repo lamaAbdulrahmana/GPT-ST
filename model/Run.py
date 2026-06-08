@@ -12,7 +12,7 @@ from model.Pretrain_model.GPTST import GPTST_Model as Network_Pretrain
 from model.Model import Enhance_model as Network_Predict
 from model.BasicTrainer import Trainer
 from lib.TrainInits import init_seed
-from lib.dataloader import get_dataloader
+from lib.dataloader import get_dataloader, get_event_dataloader
 from lib.TrainInits import print_model_parameters
 from lib.metrics import MAE_torch, MSE_torch, huber_loss
 from lib.Params_pretrain import parse_args
@@ -60,10 +60,15 @@ args.load_pretrain_path = args.load_pretrain_path
 args.save_pretrain_path = args.save_pretrain_path
 
 #load dataset
-train_loader, val_loader, test_loader, scaler_data, scaler_day, scaler_week, scaler_holiday = get_dataloader(args,
-                                                               normalizer=args.normalizer,
-                                                               tod=args.tod, dow=False,
-                                                               weather=False, single=False)
+if args.event_finetune and args.mode in ('eval', 'ori'):
+    print('=== Event fine-tuning mode: loading event segments ===')
+    train_loader, val_loader, test_loader, scaler_data, scaler_day, scaler_week, scaler_holiday = get_event_dataloader(
+        args, normalizer=args.normalizer, single=False)
+else:
+    train_loader, val_loader, test_loader, scaler_data, scaler_day, scaler_week, scaler_holiday = get_dataloader(args,
+                                                                   normalizer=args.normalizer,
+                                                                   tod=args.tod, dow=False,
+                                                                   weather=False, single=False)
 args.scaler_zeros = scaler_data.transform(0)
 args.scaler_zeros_day = scaler_day.transform(0)
 args.scaler_zeros_week = scaler_week.transform(0)
