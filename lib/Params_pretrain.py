@@ -73,6 +73,7 @@ def parse_args(device):
     args.add_argument('-mape_thresh', default=config['test']['mape_thresh'], type=float)
     # log
     args.add_argument('-log_dir', default='./', type=str)
+    args.add_argument('-exp_dir', default=None, type=str, help='experiment dir to load checkpoint from, e.g. SAVE/RIYADH_exp3_eval_event')
     args.add_argument('-log_step', default=config['log']['log_step'], type=int)
     args.add_argument('-plot', default=config['log']['plot'], type=eval)
     args, _ = args.parse_known_args()

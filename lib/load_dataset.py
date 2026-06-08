@@ -176,4 +176,19 @@ def load_event_dataset(args):
 
     print(f'Event data shapes — train: {train_data.shape}, val: {val_data.shape}, test: {test_data.shape}')
 
+    # Save extracted event segments to disk for inspection
+    save_path = os.path.join('../data/RIYADH/RIYADH_event_segments.npz')
+    np.savez(save_path,
+             train_data=train_data,
+             val_data=val_data,
+             test_data=test_data,
+             train_idx=np.array(train_idx),
+             val_idx=np.array(val_idx),
+             test_idx=np.array(test_idx),
+             event_names=np.array([m['event_name'] for m in event_meta], dtype=object),
+             event_types=np.array([m['event_type'] for m in event_meta], dtype=object),
+             win_starts=np.array([m['win_start'] for m in event_meta]),
+             win_ends=np.array([m['win_end'] for m in event_meta]))
+    print(f'Event segments saved to {save_path}')
+
     return train_data, val_data, test_data, event_meta, train_idx

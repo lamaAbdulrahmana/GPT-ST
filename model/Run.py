@@ -60,7 +60,7 @@ args.load_pretrain_path = args.load_pretrain_path
 args.save_pretrain_path = args.save_pretrain_path
 
 #load dataset
-if args.event_finetune and args.mode in ('eval', 'ori'):
+if args.event_finetune and args.mode in ('eval', 'ori', 'test'):
     print('=== Event fine-tuning mode: loading event segments ===')
     train_loader, val_loader, test_loader, scaler_data, scaler_day, scaler_week, scaler_holiday = get_event_dataloader(
         args, normalizer=args.normalizer, single=False)
@@ -169,10 +169,17 @@ elif args.mode == 'eval':
 elif args.mode == 'ori':
     trainer.train()
 elif args.mode == 'test':
-    checkpoint = torch.load(log_dir + '/best_model.pth')
-    # Handle both old format (just state_dict) and new format (full checkpoint)
+    load_dir = os.path.join(current_dir, args.exp_dir) if args.exp_dir else log_dir
+    ckpt_path = os.path.join(load_dir, args.save_pretrain_path)
+    print(f"Loading checkpoint from: {ckpt_path}")
+    checkpoint = torch.load(ckpt_path, map_location=args.device)
     state_dict = checkpoint['state_dict'] if isinstance(checkpoint, dict) and 'state_dict' in checkpoint else checkpoint
-    # Handle DataParallel wrapped models
+    if isinstance(checkpoint, dict) and 'config' in checkpoint:
+        ckpt_config = checkpoint['config']
+        ckpt_mode = ckpt_config.mode if hasattr(ckpt_config, 'mode') else ckpt_config.get('mode', None) if isinstance(ckpt_config, dict) else None
+        if ckpt_mode == 'pretrain':
+            model = Network_Pretrain(args).to(args.device)
+            print(f"Rebuilt model as pretrain (from checkpoint config)")
     if hasattr(model, 'module'):
         model.module.load_state_dict(state_dict)
     else:
@@ -180,6 +187,7 @@ elif args.mode == 'test':
     print("Load saved model")
     if isinstance(checkpoint, dict) and 'best_loss' in checkpoint:
         print(f"Checkpoint from epoch {checkpoint['epoch']} with best loss: {checkpoint['best_loss']:.6f}")
+    trainer.model = model
     trainer.test(model, trainer.args, test_loader, scaler_data, trainer.logger)
 else:
     raise ValueError

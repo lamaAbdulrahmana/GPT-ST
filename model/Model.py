@@ -93,8 +93,13 @@ class Enhance_model(nn.Module):
             raise ValueError
 
     def load_pretrained_model(self):
-        self.pretrain_model.load_state_dict(
-            torch.load(self.log_dir + self.load_pretrain_path, weights_only=False))
+        checkpoint = torch.load(self.log_dir + self.load_pretrain_path, weights_only=False)
+        # Handle both full checkpoint dict and raw state_dict
+        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        else:
+            state_dict = checkpoint
+        self.pretrain_model.load_state_dict(state_dict)
         for param in self.pretrain_model.parameters():
             param.requires_grad = False
 
