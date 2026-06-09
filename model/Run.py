@@ -141,8 +141,8 @@ else:
     raise ValueError
 loss_kl = nn.KLDivLoss(reduction='sum').to(args.device)
 
-optimizer = torch.optim.Adam(params=model.parameters(), lr=args.lr_init, eps=1.0e-8,
-                             weight_decay=0, amsgrad=False)
+optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, model.parameters()),
+                             lr=args.lr_init, eps=1.0e-8, weight_decay=0, amsgrad=False)
 #learning rate decay
 lr_scheduler = None
 if args.lr_decay:
